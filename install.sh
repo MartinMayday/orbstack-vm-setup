@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# VM install script: Adds pasted pubkey
+# VM install script: Adds pasted pubkey to ~/.ssh/authorized_keys
 echo "Paste your macmax pubkey (from clipboard) and press Enter:"
 read PUBKEY
 
@@ -9,41 +9,25 @@ if [ -z "$PUBKEY" ]; then
   exit 1
 fi
 
-AUTHORIZED_FILE="/mnt/data/ssh/authorized_keys"
+AUTHORIZED_FILE="$HOME/.ssh/authorized_keys"
 
 echo "Adding pubkey to $AUTHORIZED_FILE..."
-if [ ! -d "/mnt/data/ssh" ]; then
-  echo "Warning: /mnt/data/ssh not found. Trying to create..."
-  sudo mkdir -p /mnt/data/ssh || { echo "Error: Cannot create dir—check mounts/permissions!"; exit 1; }
-  sudo chmod 700 /mnt/data/ssh
-  sudo chown $(whoami):$(whoami) /mnt/data/ssh
-fi
+mkdir -p ~/.ssh || { echo "Error: Cannot create ~/.ssh!"; exit 1; }
+chmod 700 ~/.ssh
 
-if ! sudo grep -q "$PUBKEY" "$AUTHORIZED_FILE"; then
-  echo "$PUBKEY" | sudo tee -a "$AUTHORIZED_FILE" > /dev/null || { echo "Error: Cannot write to file!"; exit 1; }
-  sudo chmod 600 "$AUTHORIZED_FILE"
+if ! grep -q "$PUBKEY" "$AUTHORIZED_FILE"; then
+  echo "$PUBKEY" >> "$AUTHORIZED_FILE" || { echo "Error: Cannot write to file!"; exit 1; }
+  chmod 600 "$AUTHORIZED_FILE"
   echo "Key added!"
 else
   echo "Key already exists."
 fi
 
-# Restart SSH if possible
-if command -v systemctl >/dev/null; then
-  sudo systemctl restart ssh || echo "Warning: SSH restart failed."
-elif command -v service >/dev/null; then
-  sudo service ssh restart || echo "Warning: SSH restart failed."
-else
-  echo "Warning: Cannot restart SSH—do manually."
-fi
+# Restart SSH
+sudo systemctl restart ssh || sudo service ssh restart || echo "Warning: Cannot restart SSH—do manually."
 
 # Get IP
 echo "VM's current IP:"
-if command -v ip >/dev/null; then
-  ip addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -1
-elif command -v ifconfig >/dev/null; then
-  ifconfig | grep -oP 'inet\s+\K\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -1
-else
-  echo "Error: No IP tool found—check manually."
-fi
+ip addr show | grep -oP "(?<=inet\s)\d+(\.\d+){3}" | grep -v "127.0.0.1" | head -1 || ifconfig | grep -oP "inet\s+\K\d+(\.\d+){3}" | grep -v "127.0.0.1" | head -1 || echo "Error: No IP tool—check manually."
 
-echo "Done! Return to macmax for integration."
+echo "Done! Return to macmax."
